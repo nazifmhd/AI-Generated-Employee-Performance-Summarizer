@@ -1,28 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hr_performance_analytics/app.dart';
 import 'package:provider/provider.dart';
 import 'providers/upload_provider.dart';
 import 'providers/summary_provider.dart';
-import 'providers/statistics_provider.dart'; // Add this import
+import 'providers/statistics_provider.dart';
+import 'providers/auth_provider.dart';
+import 'core/services/firebase_service.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase with proper options
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Initialize Firebase service
+  await FirebaseService.initialize();
+  
   runApp(
     MultiProvider(
       providers: [
-        // Register StatisticsProvider first
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => StatisticsProvider()),
-        
-        // Then provide SummaryProvider with access to StatisticsProvider
-        ChangeNotifierProxyProvider<StatisticsProvider, SummaryProvider>(
+        ChangeNotifierProxyProvider2<StatisticsProvider, AuthProvider, SummaryProvider>(
           create: (context) => SummaryProvider(
             statisticsProvider: Provider.of<StatisticsProvider>(context, listen: false),
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
           ),
-          update: (context, statsProvider, previous) => 
-            previous ?? SummaryProvider(statisticsProvider: statsProvider),
+          update: (context, statsProvider, authProvider, previous) => 
+            previous ?? SummaryProvider(
+              statisticsProvider: statsProvider,
+              authProvider: authProvider,
+            ),
         ),
-        
-        // Keep existing providers
         ChangeNotifierProvider(create: (_) => UploadProvider()),
       ],
       child: const MyApp(),

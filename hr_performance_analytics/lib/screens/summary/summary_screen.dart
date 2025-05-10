@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../../providers/summary_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../core/services/pdf_service.dart';
 import '../../core/constants.dart';
 
@@ -33,7 +34,7 @@ class _SummaryScreenState extends State<SummaryScreen> with SingleTickerProvider
     super.dispose();
   }
   
-    // In the _calculateDepartmentAverages method
+  // In the _calculateDepartmentAverages method
   void _calculateDepartmentAverages() {
     final summaryProvider = Provider.of<SummaryProvider>(context, listen: false);
     
@@ -115,6 +116,32 @@ class _SummaryScreenState extends State<SummaryScreen> with SingleTickerProvider
           indicatorColor: AppConstants.primaryColor,
         ),
         actions: [
+          // Add cloud upload icon for Firebase sync
+          IconButton(
+            icon: const Icon(Icons.cloud_upload),
+            tooltip: "Sync to Cloud",
+            onPressed: () {
+              final provider = Provider.of<SummaryProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              
+              if (!authProvider.isLoggedIn) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please sign in to sync with cloud')),
+                );
+                return;
+              }
+              
+              provider.syncToCloud().then((_) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Summaries synced to cloud')),
+                );
+              }).catchError((e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Sync failed: ${e.toString()}')),
+                );
+              });
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.save_alt),
             tooltip: "Export All",
@@ -887,6 +914,7 @@ class _SummaryScreenState extends State<SummaryScreen> with SingleTickerProvider
   }
 }
 
+// Keep the existing chart classes as is - no need to change tooltips
 class _DepartmentBarChart extends StatelessWidget {
   final Map<String, double> departmentAverages;
   
@@ -1012,8 +1040,7 @@ class _DepartmentBarChart extends StatelessWidget {
   }
 }
 
-// New chart classes for the added visualizations
-
+// Keep other chart classes with their original tooltip implementations
 class _MonthlyPerformanceChart extends StatelessWidget {
   final Map<String, double> monthlyAverages;
   

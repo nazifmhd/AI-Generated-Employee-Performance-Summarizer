@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "1007581634713",
+    "project_id": "hr-performance-analytics",
+    "storage_bucket": "hr-performance-analytics.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1007581634713:android:5a08afd6c05703449d1808",
+        "android_client_info": {
+          "package_name": "com.example.hr_performance_analytics"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1007581634713-a067hckeudj3tgitvs854o326471kc7f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFlb5M79VaqQPQVyLOCeh2N-m6IkOSILI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1007581634713-a067hckeudj3tgitvs854o326471kc7f.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1007581634713-3odir9qmfbmc1uetcqlb5iaato74qqck.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.hrPerformanceAnalytics"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

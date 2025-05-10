@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
 import '../../providers/statistics_provider.dart';
+import '../../providers/auth_provider.dart'; // Import AuthProvider
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -26,6 +27,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('HR Performance Analytics'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: () async {
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+              await authProvider.signOut();
+              // Navigation will be handled by the StreamBuilder in MyApp
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -50,7 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-              
+
               // Welcome section
               const Text(
                 "AI Performance Summary Assistant",
@@ -61,26 +76,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 "Automate your employee performance review drafts using AI-powered natural language summaries.",
                 style: AppConstants.bodyTextStyle,
               ),
-              
+
               // Quick stats card - now using Consumer to get the latest stats
               Consumer<StatisticsProvider>(
-                builder: (context, statsProvider, child) => _buildStatsCard(
-                  analyzed: statsProvider.analyzedCount,
-                  generated: statsProvider.generatedCount,
-                  saved: statsProvider.savedCount,
-                ),
+                builder:
+                    (context, statsProvider, child) => _buildStatsCard(
+                      analyzed: statsProvider.analyzedCount,
+                      generated: statsProvider.generatedCount,
+                      saved: statsProvider.savedCount,
+                    ),
               ),
-              
+
               const SizedBox(height: 20),
               const Text(
                 "What would you like to do?",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 15),
-              
+
               // Feature navigation buttons
               _buildNavButton(
                 context,
@@ -103,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 description: "View and export previously generated reports",
                 routeName: "/history",
               ),
-              
+
               // Help section
               const SizedBox(height: 30),
               _buildHelpSection(context),
@@ -115,9 +128,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStatsCard({
-    required int analyzed, 
-    required int generated, 
-    required int saved
+    required int analyzed,
+    required int generated,
+    required int saved,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 20),
@@ -137,20 +150,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatItem(title: "Analyzed", value: analyzed.toString(), icon: Icons.analytics),
-          _buildStatItem(title: "Generated", value: generated.toString(), icon: Icons.description),
-          _buildStatItem(title: "Saved", value: saved.toString(), icon: Icons.save),
+          _buildStatItem(
+            title: "Analyzed",
+            value: analyzed.toString(),
+            icon: Icons.analytics,
+          ),
+          _buildStatItem(
+            title: "Generated",
+            value: generated.toString(),
+            icon: Icons.description,
+          ),
+          _buildStatItem(
+            title: "Saved",
+            value: saved.toString(),
+            icon: Icons.save,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem({required String title, required String value, required IconData icon}) {
+  Widget _buildStatItem({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
     return Column(
       children: [
         Icon(icon, color: AppConstants.primaryColor, size: 28),
         const SizedBox(height: 5),
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
         Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
@@ -185,11 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: AppConstants.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
-                    icon,
-                    color: AppConstants.primaryColor,
-                    size: 28,
-                  ),
+                  child: Icon(icon, color: AppConstants.primaryColor, size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -205,10 +233,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       Text(
                         description,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -257,8 +282,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             text: "Upload a CSV file with employee performance data",
           ),
           _buildHelpStep(
-            number: "2", 
-            text: "Our AI analyzes the data to generate natural language summaries",
+            number: "2",
+            text:
+                "Our AI analyzes the data to generate natural language summaries",
           ),
           _buildHelpStep(
             number: "3",
@@ -294,12 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
         ],
       ),
     );

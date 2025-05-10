@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../../../providers/summary_provider.dart';
-import '../../../core/constants.dart';
+import '../../providers/summary_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../core/constants.dart';
+import '../../core/services/pdf_service.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -14,6 +16,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   bool _isLoading = true;
   String _filterDepartment = "All";
+  bool _isDisposed = false;
   
   @override
   void initState() {
@@ -22,21 +25,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _loadData();
     });
   }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
   
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (_isDisposed) return;
+    
+    // Only set loading state if the widget is still mounted
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
     
     try {
       final summaryProvider = Provider.of<SummaryProvider>(context, listen: false);
-      await summaryProvider.loadFromLocalHistory();
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      if (authProvider.isLoggedIn) {
+        // Try to load from Firestore first if user is logged in
+        await summaryProvider.loadFromFirestore();
+      } else {
+        // Fall back to local storage
+        await summaryProvider.loadFromLocalHistory();
+      }
     } catch (e) {
       debugPrint('Error loading summaries: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      // Check if widget is still mounted before updating state
+      if (mounted && !_isDisposed) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -47,6 +72,49 @@ class _HistoryScreenState extends State<HistoryScreen> {
         title: const Text('Performance History'),
         centerTitle: true,
         actions: [
+          // Add cloud sync icon for Firebase sync
+          IconButton(
+            icon: const Icon(Icons.cloud_sync),
+            tooltip: 'Sync with Cloud',
+            onPressed: () async {
+              final provider = Provider.of<SummaryProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              
+              if (!authProvider.isLoggedIn) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please sign in to sync with cloud')),
+                );
+                return;
+              }
+              
+              if (mounted) {
+                setState(() {
+                  _isLoading = true;
+                });
+              }
+              
+              try {
+                await provider.syncToCloud();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Summaries synced to cloud successfully')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error syncing: ${e.toString()}')),
+                  );
+                }
+              } finally {
+                if (mounted && !_isDisposed) {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                }
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
@@ -194,9 +262,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       label: Text(dept),
                       selected: isSelected,
                       onSelected: (selected) {
-                        setState(() {
-                          _filterDepartment = dept;
-                        });
+                        if (mounted && !_isDisposed) {
+                          setState(() {
+                            _filterDepartment = dept;
+                          });
+                        }
                       },
                       backgroundColor: Colors.grey.shade100,
                       selectedColor: AppConstants.primaryColor.withOpacity(0.2),
@@ -234,6 +304,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         final goalsMet = summary['goalsMet'] as String? ?? '0%';
         final summaryText = summary['summary'] as String? ?? 'No summary available';
         
+        // Get cloud sync status
+        final isSynced = summary['syncedAt'] != null;
+        
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           elevation: 1,
@@ -269,12 +342,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          Text(
-                            '$department · $month',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade700,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                '$department · $month',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                              if (isSynced) ...[
+                                const SizedBox(width: 6),
+                                Icon(
+                                  Icons.cloud_done,
+                                  size: 14,
+                                  color: Colors.green.shade700,
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
@@ -338,7 +423,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     TextButton.icon(
                       icon: const Icon(Icons.delete_outline, size: 16),
                       label: const Text('Delete'),
-                      onPressed: () => _confirmDelete(context, summary, index),
+                      onPressed: () => _confirmDelete(context, summary, allSummaries.indexOf(summary)),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.redAccent,
                       ),
@@ -385,6 +470,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
   
   void _showSummaryDetails(BuildContext context, Map<String, dynamic> summary) {
+    if (!mounted) return;
+    
     // Add null checks for all displayed fields
     final name = summary['name'] as String? ?? 'Unknown';
     final department = summary['department'] as String? ?? 'Unknown';
@@ -395,6 +482,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final peerFeedback = summary['peerFeedback'] as String? ?? '';
     final managerComments = summary['managerComments'] as String? ?? '';
     final summaryText = summary['summary'] as String? ?? 'No summary available';
+    final isSynced = summary['syncedAt'] != null;
 
     showModalBottomSheet(
       context: context,
@@ -463,6 +551,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ],
                       ),
                     ),
+                    if (isSynced)
+                      Tooltip(
+                        message: 'Synced to cloud',
+                        child: Icon(
+                          Icons.cloud_done,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
                   ],
                 ),
                 
@@ -525,18 +621,61 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 
                 const SizedBox(height: 40),
                 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _exportAsPdf(summary),
-                    icon: const Icon(Icons.download),
-                    label: const Text('Export as PDF'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: AppConstants.primaryColor,
-                      foregroundColor: Colors.white,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _exportAsPdf(summary),
+                        icon: const Icon(Icons.download),
+                        label: const Text('Export as PDF'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          backgroundColor: AppConstants.primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    // Only show sync button if not already synced
+                    if (!isSynced)
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, _) {
+                          if (!authProvider.isLoggedIn) {
+                            return const SizedBox.shrink();
+                          }
+                          
+                          return ElevatedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              final provider = Provider.of<SummaryProvider>(context, listen: false);
+                              try {
+                                await provider.syncToCloud();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Summary synced to cloud')),
+                                  );
+                                  // Reload data to update sync status
+                                  _loadData();
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error syncing: ${e.toString()}')),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.cloud_upload),
+                            label: const Text('Sync'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                              backgroundColor: Colors.blueGrey,
+                              foregroundColor: Colors.white,
+                            ),
+                          );
+                        },
+                      ),
+                  ],
                 ),
                 
                 const SizedBox(height: 20),
@@ -578,14 +717,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
   
   void _confirmDelete(BuildContext context, Map<String, dynamic> summary, int index) {
+    if (!mounted) return;
+    
     final name = summary['name'] as String? ?? 'Unknown';
+    final isSynced = summary['syncedAt'] != null;
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Summary?'),
         content: Text(
-          'Are you sure you want to delete the performance summary for $name?'
+          'Are you sure you want to delete the performance summary for $name?' +
+          (isSynced ? ' This will also remove it from cloud storage.' : '')
         ),
         actions: [
           TextButton(
@@ -608,6 +751,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
   
   void _deleteSummary(int index) {
+    if (!mounted) return;
+    
     try {
       final provider = Provider.of<SummaryProvider>(context, listen: false);
       provider.deleteSummary(index);
@@ -623,14 +768,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
   
   void _exportAsPdf(Map<String, dynamic> summary) {
-    // This would use a PDF generation package
-    // For now just show a snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('PDF export not implemented yet')),
-    );
+    if (!mounted) return;
+    
+    try {
+      PdfService.exportSingleSummaryAsPdf(summary);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Summary exported as PDF')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting PDF: ${e.toString()}')),
+      );
+    }
   }
   
   void _shareSummary(Map<String, dynamic> summary) {
+    if (!mounted) return;
+    
     // This would use a share package
     // For now just show a snackbar
     ScaffoldMessenger.of(context).showSnackBar(
